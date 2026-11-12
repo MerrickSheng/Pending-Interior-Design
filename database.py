@@ -1,5 +1,4 @@
 """Local SQLite persistence for the Pending demo (no online database required)."""
-import os
 import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -40,9 +39,9 @@ def init_db():
     """Create demo tables and safely add columns to an existing local database."""
     with get_db() as conn:
         # To use if you need to recreate/reset the values in database
-        #reset = True
-        #if reset:
-        #    conn.execute("DROP TABLE IF EXISTS company_profile")
+        reset = True
+        if reset:
+            seed_marcus_weights()
         conn.executescript('''
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -64,7 +63,7 @@ def init_db():
                 title TEXT NOT NULL, description TEXT DEFAULT '',
                 is_featured INTEGER DEFAULT 0, is_visible INTEGER DEFAULT 1,
                 category TEXT DEFAULT '', style TEXT DEFAULT '', property_type TEXT DEFAULT '',
-                viewership_count INTEGER DEFAULT 0.5, shortlist_count INTEGER DEFAULT 0.5
+                viewership_count INTEGER DEFAULT 0, shortlist_count INTEGER DEFAULT 0
             );
 
             CREATE TABLE IF NOT EXISTS project_photo (
@@ -125,6 +124,10 @@ def init_db():
         for column in ('viewership_count', 'shortlist_count'):
             if column not in existing:
                 conn.execute(f"ALTER TABLE interior_design_project ADD COLUMN {column} INTEGER NOT NULL DEFAULT 0")
+        for column in ('weights_views', 'weights_short'):
+            company_columns = {c['name'] for c in conn.execute('PRAGMA table_info(company_profile)')}
+            if column not in company_columns:
+                conn.execute(f"ALTER TABLE company_profile ADD COLUMN {column} REAL NOT NULL DEFAULT 0.5")
         if 'account_key' not in existing:
             conn.execute("ALTER TABLE interior_design_project ADD COLUMN account_key TEXT NOT NULL DEFAULT ''")
         count = conn.execute('SELECT COUNT(*) AS n FROM interior_design_project').fetchone()['n']
@@ -163,6 +166,36 @@ def get_company(account_key=DEFAULT_DESIGNER_ACCOUNT):
         conn.execute('INSERT INTO company_profile (account_key) VALUES (?)', (account_key,))
         row = conn.execute('SELECT * FROM company_profile WHERE account_key=?', (account_key,)).fetchone()
         return dict(row)
+
+def seed_marcus_weights(
+    account_key='designer:marcus-beaumont',
+    weights_views=0.6,
+    weights_short=0.4
+):
+    """Ensure company_profile weights exist for Marcus and populate metric counts on his IDPs."""
+    with get_db() as conn:
+        # 1. Insert or update Marcus's weightage in company_profile
+        conn.execute('''
+            INSERT INTO company_profile (account_key, name, contact_info, weights_views, weights_short)
+            VALUES (?, 'Marcus Beaumont Design', 'marcus.beaumont@example.com', ?, ?)
+            ON CONFLICT(account_key) DO UPDATE SET
+                weights_views = excluded.weights_views,
+                weights_short = excluded.weights_short
+        ''', (account_key, weights_views, weights_short))
+
+        # 2. Populate viewership_count and shortlist_count on his existing projects
+        project_ids = [
+            row['id'] for row in conn.execute(
+                'SELECT id FROM interior_design_project WHERE account_key = ?',
+                (account_key,)
+            ).fetchall()
+        ]
+
+        conn.executemany('''
+            UPDATE interior_design_project
+            SET viewership_count = ?, shortlist_count = ?
+            WHERE id = ?
+        ''', [(randint(15, 100), randint(5, 50), pid) for pid in project_ids])
 
 
 def get_all_companies():
