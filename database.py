@@ -39,9 +39,9 @@ def init_db():
     """Create demo tables and safely add columns to an existing local database."""
     with get_db() as conn:
         # To use if you need to recreate/reset the values in database
-        reset = True
-        if reset:
-            seed_marcus_weights()
+        #reset = True
+        #if reset:
+        #    seed_marcus_weights()
         conn.executescript('''
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -166,36 +166,6 @@ def get_company(account_key=DEFAULT_DESIGNER_ACCOUNT):
         conn.execute('INSERT INTO company_profile (account_key) VALUES (?)', (account_key,))
         row = conn.execute('SELECT * FROM company_profile WHERE account_key=?', (account_key,)).fetchone()
         return dict(row)
-
-def seed_marcus_weights(
-    account_key='designer:marcus-beaumont',
-    weights_views=0.6,
-    weights_short=0.4
-):
-    """Ensure company_profile weights exist for Marcus and populate metric counts on his IDPs."""
-    with get_db() as conn:
-        # 1. Insert or update Marcus's weightage in company_profile
-        conn.execute('''
-            INSERT INTO company_profile (account_key, name, contact_info, weights_views, weights_short)
-            VALUES (?, 'Marcus Beaumont Design', 'marcus.beaumont@example.com', ?, ?)
-            ON CONFLICT(account_key) DO UPDATE SET
-                weights_views = excluded.weights_views,
-                weights_short = excluded.weights_short
-        ''', (account_key, weights_views, weights_short))
-
-        # 2. Populate viewership_count and shortlist_count on his existing projects
-        project_ids = [
-            row['id'] for row in conn.execute(
-                'SELECT id FROM interior_design_project WHERE account_key = ?',
-                (account_key,)
-            ).fetchall()
-        ]
-
-        conn.executemany('''
-            UPDATE interior_design_project
-            SET viewership_count = ?, shortlist_count = ?
-            WHERE id = ?
-        ''', [(randint(15, 100), randint(5, 50), pid) for pid in project_ids])
 
 
 def get_all_companies():
