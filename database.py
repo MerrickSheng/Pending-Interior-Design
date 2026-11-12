@@ -245,7 +245,7 @@ def create_project(title, description, category, style, property_type, room_coun
         return project_id
 
 
-def save_project(project_id,title,description,category,style,property_type,room_count='',apartment_type='',actor='demo-designer'):
+def save_project(project_id,title,description,category,style,property_type,room_count='',apartment_type='',actor='demo-designer',):
     with get_db() as conn:
         cursor = conn.execute('''UPDATE interior_design_project
             SET title=?,description=?,category=?,style=?,property_type=?,room_count=?,apartment_type=?,updated_at=?
@@ -253,6 +253,12 @@ def save_project(project_id,title,description,category,style,property_type,room_
             (title,description,category,style,property_type,room_count,apartment_type,now_sg(),project_id))
         if cursor.rowcount:
             record_activity(conn,'Edited project',project_id,title,actor)
+
+
+def save_viewership_count(project_id, count):
+    with get_db() as conn:
+        conn.execute('UPDATE interior_design_project SET viewership_count=?, updated_at=? WHERE id=?',
+                     (count, now_sg(), project_id))
 
 
 def toggle_featured(project_id,actor='demo-designer'):
@@ -611,6 +617,11 @@ class ProjectService:
              room_count='', apartment_type='', actor='demo-designer'):
         return save_project(project_id, title, description, category, style,
                             property_type, room_count, apartment_type, actor)
+
+    def increment_viewership_count(self, project_id):
+        views = get_project(project_id).get('viewership_count', 0) + 1
+        return save_viewership_count(project_id, views)
+
 
     def toggle_featured(self, project_id, actor='demo-designer'):
         return toggle_featured(project_id, actor)

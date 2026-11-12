@@ -218,6 +218,7 @@ def toggle_favorite(project_id):
 @app.route('/idp/<int:project_id>')
 def idp_view(project_id):
     project = _project_svc.get(project_id)
+    _project_svc.increment_viewership_count(project_id)
     if not project or not project['is_visible']:
         return render_template('sites/404.html'), 404
     photos = _photo_svc.get_all(project_id)
